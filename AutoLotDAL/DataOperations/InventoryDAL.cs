@@ -207,8 +207,53 @@ namespace AutoLotDAL.DataOperations
             }
             return carPetName;
         }
+        public void ProcessCreditRisk(bool throwEx, int custId)
+        {
+            OpenConnection();
+            string fname;
+            string lname;
+            var cmdSelect = new SqlCommand($"SELECT * FROM Customers WHERE CustId = {custId}", _sqlConnection);
+            using (var dataReader = cmdSelect.ExecuteReader())
+            {
+                if (dataReader.HasRows)
+                {
+                    dataReader.Read();
+                    fname = (string)dataReader["FirstName"];
+                    lname = (string)dataReader["LastName"];
+                }
+                else
+                {
+                    CloseConnection();
+                    return;
+                }
+            }
+            var cmdRemove = new SqlCommand($"DELETE FROM Customers WHERE CustId = {custId}", _sqlConnection);
+            var cmdInsert = new SqlCommand($"INSERT INTO CreditRisks (FirstName, LastName) VALUES ('{fname}', '{lname}')", _sqlConnection);
+            SqlTransaction tx = null;
+            try
+            {
+                tx = _sqlConnection.BeginTransaction();
+                cmdInsert.Transaction = tx;
+                cmdRemove.Transaction = tx;
+                cmdInsert.ExecuteNonQuery();
+                cmdRemove.ExecuteNonQuery();
 
-
+                if (throwEx)
+                {
+                    throw new Exception("Sorry! Database error! Tx failed....");
+                }
+                tx.Commit();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                tx?.Rollback();
+            }
+            finally
+            {
+                CloseConnection();
+            }
+        }
 
     }
 }
